@@ -3,103 +3,185 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Golf Master - 18洞計分板</title>
+    <title>Golf Master Live - 高爾夫計分</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore-compat.js"></script>
+    
     <style>
-        body { background-color: #f0f4f0; }
-        .golf-green { background-color: #2d5a27; }
-        .card { background: rgba(255, 255, 255, 0.95); border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        input[type="number"] { -moz-appearance: textfield; text-align: center; }
+        body { 
+            /* 注意：這裡的 'bg.jpg' 必須跟你在 GitHub 上傳的圖片檔名一模一樣 */
+            background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url('bg.jpg'); 
+            background-size: cover; 
+            background-position: center;
+            background-attachment: fixed; 
+            min-height: 100vh; 
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+        }
+
+        .glass-card { 
+            background: rgba(255, 255, 255, 0.85); 
+            backdrop-filter: blur(10px); 
+            border-radius: 20px; 
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .golf-green-btn { background-color: #1b4332; transition: all 0.3s; }
+        .golf-green-btn:hover { background-color: #2d6a4f; transform: translateY(-2px); }
+
+        /* 隱藏數字輸入框的上下箭頭 */
         input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type="number"] { -moz-appearance: textfield; }
     </style>
 </head>
-<body class="p-4">
+<body class="p-4 text-gray-800">
 
-    <div id="setup-screen" class="card p-6 mb-6">
-        <h2 class="text-2xl font-bold mb-4 text-green-800">⛳ 比賽設定</h2>
-        <div class="space-y-3">
-            <input type="text" id="courseName" placeholder="球場名稱" class="w-full p-2 border rounded">
-            <input type="text" id="teamName" placeholder="隊伍名稱" class="w-full p-2 border rounded">
-            <input type="text" id="playerName" placeholder="選手姓名" class="w-full p-2 border rounded">
-            <input type="password" id="roomPass" placeholder="同組同步密碼" class="w-full p-2 border rounded">
-            <button onclick="startMatch()" class="w-full golf-green text-white py-3 rounded-lg font-bold">開始比賽</button>
+    <div id="setup-screen" class="glass-card p-8 max-w-md mx-auto mt-10 shadow-2xl">
+        <h2 class="text-3xl font-black mb-6 text-center text-green-900 border-b-2 border-green-200 pb-2">⛳ 比賽登入</h2>
+        <div class="space-y-4">
+            <input type="text" id="courseName" class="w-full p-3 border rounded-lg" placeholder="球場名稱">
+            <input type="text" id="teamName" class="w-full p-3 border rounded-lg" placeholder="隊伍名稱">
+            <input type="text" id="playerName" class="w-full p-3 border rounded-lg" placeholder="您的姓名">
+            <input type="password" id="roomPass" class="w-full p-3 border rounded-lg" placeholder="同步密碼 (同組需一致)">
+            <button onclick="joinMatch()" class="w-full golf-green-btn text-white py-4 rounded-xl font-bold shadow-lg">進入計分板</button>
         </div>
     </div>
 
-    <div id="score-screen" class="hidden">
-        <div class="flex justify-between items-center mb-4">
+    <div id="score-screen" class="hidden max-w-2xl mx-auto">
+        <div class="glass-card p-4 mb-4 flex justify-between items-center sticky top-0 z-50 shadow-lg">
             <div>
-                <h1 id="display-course" class="text-xl font-bold text-green-900"></h1>
-                <p id="display-player" class="text-sm text-gray-600"></p>
+                <h1 id="disp-course" class="text-xl font-bold text-green-900"></h1>
+                <p id="disp-player" class="text-xs font-bold text-green-700"></p>
             </div>
-            <div class="text-right golf-green text-white p-3 rounded-lg">
-                <span class="text-xs">總桿數</span><br>
-                <span id="grand-total" class="text-2xl font-bold">0</span>
+            <div class="text-center bg-yellow-400 px-5 py-2 rounded-2xl shadow-md">
+                <span class="text-[10px] font-black block">TOTAL</span>
+                <span id="grand-total" class="text-3xl font-black">0</span>
             </div>
         </div>
 
-        <div class="card p-4 mb-4">
-            <h3 class="font-bold border-b pb-2 mb-2 text-green-700">前九洞 (OUT) - 小計: <span id="out-sum">0</span></h3>
-            <div class="grid grid-cols-3 gap-3" id="out-holes"></div>
-        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="glass-card p-5 shadow-md">
+                <div class="flex justify-between items-center border-b border-green-200 pb-2 mb-4">
+                    <h3 class="font-black text-green-800">OUT (1-9 洞)</h3>
+                    <span class="text-sm font-bold bg-green-100 px-2 py-1 rounded">小計: <span id="out-sum">0</span></span>
+                </div>
+                <div id="out-holes-container" class="space-y-3"></div>
+            </div>
 
-        <div class="card p-4 mb-4">
-            <h3 class="font-bold border-b pb-2 mb-2 text-green-700">後九洞 (IN) - 小計: <span id="in-sum">0</span></h3>
-            <div class="grid grid-cols-3 gap-3" id="in-holes"></div>
+            <div class="glass-card p-5 shadow-md">
+                <div class="flex justify-between items-center border-b border-green-200 pb-2 mb-4">
+                    <h3 class="font-black text-green-800">IN (10-18 洞)</h3>
+                    <span class="text-sm font-bold bg-green-100 px-2 py-1 rounded">小計: <span id="in-sum">0</span></span>
+                </div>
+                <div id="in-holes-container" class="space-y-3"></div>
+            </div>
         </div>
     </div>
 
     <script>
-        function startMatch() {
-            const course = document.getElementById('courseName').value || '未知名球場';
-            const player = document.getElementById('playerName').value || '無名選手';
-            
-            document.getElementById('display-course').innerText = course;
-            document.getElementById('display-player').innerText = `選手: ${player}`;
+        // 【重要：請在此貼上你的 Firebase 配置】
+        const firebaseConfig = {
+            apiKey: "你的API_KEY",
+            authDomain: "你的專案ID.firebaseapp.com",
+            projectId: "你的專案ID",
+            storageBucket: "你的專案ID.appspot.com",
+            messagingSenderId: "你的SENDER_ID",
+            appId: "你的APP_ID"
+        };
+
+        // 初始化 Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        let matchId = "";
+        let myName = "";
+
+        // 登入邏輯
+        async function joinMatch() {
+            const course = document.getElementById('courseName').value.trim();
+            const team = document.getElementById('teamName').value.trim();
+            const pass = document.getElementById('roomPass').value.trim();
+            myName = document.getElementById('playerName').value.trim();
+
+            if(!course || !team || !pass || !myName) return alert("請填寫完整資訊！");
+
+            matchId = `${course}_${team}_${pass}`;
             
             document.getElementById('setup-screen').classList.add('hidden');
             document.getElementById('score-screen').classList.remove('hidden');
-            
-            initHoles();
+            document.getElementById('disp-course').innerText = course;
+            document.getElementById('disp-player').innerText = `選手: ${myName}`;
+
+            initUI();
+            startSync();
         }
 
-        function initHoles() {
-            const outBox = document.getElementById('out-holes');
-            const inBox = document.getElementById('in-holes');
+        // 建立 18 洞 UI
+        function initUI() {
+            const outBox = document.getElementById('out-holes-container');
+            const inBox = document.getElementById('in-holes-container');
+            outBox.innerHTML = ''; inBox.innerHTML = '';
 
             for(let i=1; i<=18; i++) {
-                const holeHTML = `
-                    <div class="bg-gray-50 p-2 rounded border border-gray-200">
-                        <div class="text-xs font-bold text-gray-500">HOLE ${i}</div>
-                        <div class="flex items-center justify-between mt-1">
-                            <button onclick="changeScore(${i}, -1)" class="w-6 h-6 bg-red-100 text-red-600 rounded">-</button>
-                            <input type="number" id="h${i}" value="0" onchange="calculate()" class="w-8 bg-transparent font-bold">
-                            <button onclick="changeScore(${i}, 1)" class="w-6 h-6 bg-blue-100 text-blue-600 rounded">+</button>
+                const html = `
+                    <div class="flex items-center justify-between bg-white/50 p-3 rounded-xl border border-white/50 shadow-sm">
+                        <div class="flex items-center space-x-3">
+                            <span class="w-7 h-7 flex items-center justify-center bg-green-800 text-white rounded-full text-xs font-bold">${i}</span>
+                            <div class="flex flex-col">
+                                <span class="text-[9px] text-gray-500 font-bold uppercase">Par</span>
+                                <input type="number" id="par${i}" class="w-8 text-sm font-bold text-blue-700 bg-transparent" value="4" onchange="updateFirebase(${i})">
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <button onclick="stepScore(${i}, -1)" class="w-8 h-8 bg-white border border-red-200 text-red-600 rounded-lg font-black shadow-sm">-</button>
+                            <input type="number" id="h${i}" class="w-10 text-xl font-black text-center bg-transparent" value="0" readonly>
+                            <button onclick="stepScore(${i}, 1)" class="w-8 h-8 bg-white border border-blue-200 text-blue-600 rounded-lg font-black shadow-sm">+</button>
                         </div>
                     </div>
                 `;
-                if(i <= 9) outBox.innerHTML += holeHTML;
-                else inBox.innerHTML += holeHTML;
+                if(i <= 9) outBox.innerHTML += html;
+                else inBox.innerHTML += html;
             }
         }
 
-        function changeScore(holeNum, delta) {
-            const input = document.getElementById(`h${holeNum}`);
-            let val = parseInt(input.value) + delta;
-            input.value = val < 0 ? 0 : val;
-            calculate();
+        // 即時監聽資料庫
+        function startSync() {
+            db.collection("matches").doc(matchId).onSnapshot((doc) => {
+                if (doc.exists) {
+                    const data = doc.data()[myName] || {};
+                    const parData = doc.data().pars || {};
+                    for(let i=1; i<=18; i++) {
+                        document.getElementById(`h${i}`).value = data[`h${i}`] || 0;
+                        if(parData[`p${i}`]) document.getElementById(`par${i}`).value = parData[`p${i}`];
+                    }
+                    calculateLocal();
+                }
+            });
         }
 
-        function calculate() {
-            let outTotal = 0;
-            let inTotal = 0;
+        function stepScore(hole, delta) {
+            const input = document.getElementById(`h${hole}`);
+            let newVal = Math.max(0, parseInt(input.value) + delta);
+            updateFirebase(hole, newVal);
+        }
 
-            for(let i=1; i<=9; i++) outTotal += parseInt(document.getElementById(`h${i}`).value) || 0;
-            for(let i=10; i<=18; i++) inTotal += parseInt(document.getElementById(`h${i}`).value) || 0;
+        function updateFirebase(hole, scoreVal) {
+            const parVal = parseInt(document.getElementById(`par${hole}`).value);
+            const updateObj = {};
+            updateObj[`${myName}.h${hole}`] = scoreVal !== undefined ? scoreVal : parseInt(document.getElementById(`h${hole}`).value);
+            updateObj[`pars.p${hole}`] = parVal;
 
-            document.getElementById('out-sum').innerText = outTotal;
-            document.getElementById('in-sum').innerText = inTotal;
-            document.getElementById('grand-total').innerText = outTotal + inTotal;
+            db.collection("matches").doc(matchId).set(updateObj, {merge: true});
+        }
+
+        function calculateLocal() {
+            let outSum = 0, inSum = 0;
+            for(let i=1; i<=9; i++) outSum += parseInt(document.getElementById(`h${i}`).value) || 0;
+            for(let i=10; i<=18; i++) inSum += parseInt(document.getElementById(`h${i}`).value) || 0;
+            
+            document.getElementById('out-sum').innerText = outSum;
+            document.getElementById('in-sum').innerText = inSum;
+            document.getElementById('grand-total').innerText = outSum + inSum;
         }
     </script>
 </body>
