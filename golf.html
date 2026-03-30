@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Golf Master - 18洞計分板</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #f0f4f0; }
+        .golf-green { background-color: #2d5a27; }
+        .card { background: rgba(255, 255, 255, 0.95); border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        input[type="number"] { -moz-appearance: textfield; text-align: center; }
+        input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    </style>
+</head>
+<body class="p-4">
+
+    <div id="setup-screen" class="card p-6 mb-6">
+        <h2 class="text-2xl font-bold mb-4 text-green-800">⛳ 比賽設定</h2>
+        <div class="space-y-3">
+            <input type="text" id="courseName" placeholder="球場名稱" class="w-full p-2 border rounded">
+            <input type="text" id="teamName" placeholder="隊伍名稱" class="w-full p-2 border rounded">
+            <input type="text" id="playerName" placeholder="選手姓名" class="w-full p-2 border rounded">
+            <input type="password" id="roomPass" placeholder="同組同步密碼" class="w-full p-2 border rounded">
+            <button onclick="startMatch()" class="w-full golf-green text-white py-3 rounded-lg font-bold">開始比賽</button>
+        </div>
+    </div>
+
+    <div id="score-screen" class="hidden">
+        <div class="flex justify-between items-center mb-4">
+            <div>
+                <h1 id="display-course" class="text-xl font-bold text-green-900"></h1>
+                <p id="display-player" class="text-sm text-gray-600"></p>
+            </div>
+            <div class="text-right golf-green text-white p-3 rounded-lg">
+                <span class="text-xs">總桿數</span><br>
+                <span id="grand-total" class="text-2xl font-bold">0</span>
+            </div>
+        </div>
+
+        <div class="card p-4 mb-4">
+            <h3 class="font-bold border-b pb-2 mb-2 text-green-700">前九洞 (OUT) - 小計: <span id="out-sum">0</span></h3>
+            <div class="grid grid-cols-3 gap-3" id="out-holes"></div>
+        </div>
+
+        <div class="card p-4 mb-4">
+            <h3 class="font-bold border-b pb-2 mb-2 text-green-700">後九洞 (IN) - 小計: <span id="in-sum">0</span></h3>
+            <div class="grid grid-cols-3 gap-3" id="in-holes"></div>
+        </div>
+    </div>
+
+    <script>
+        function startMatch() {
+            const course = document.getElementById('courseName').value || '未知名球場';
+            const player = document.getElementById('playerName').value || '無名選手';
+            
+            document.getElementById('display-course').innerText = course;
+            document.getElementById('display-player').innerText = `選手: ${player}`;
+            
+            document.getElementById('setup-screen').classList.add('hidden');
+            document.getElementById('score-screen').classList.remove('hidden');
+            
+            initHoles();
+        }
+
+        function initHoles() {
+            const outBox = document.getElementById('out-holes');
+            const inBox = document.getElementById('in-holes');
+
+            for(let i=1; i<=18; i++) {
+                const holeHTML = `
+                    <div class="bg-gray-50 p-2 rounded border border-gray-200">
+                        <div class="text-xs font-bold text-gray-500">HOLE ${i}</div>
+                        <div class="flex items-center justify-between mt-1">
+                            <button onclick="changeScore(${i}, -1)" class="w-6 h-6 bg-red-100 text-red-600 rounded">-</button>
+                            <input type="number" id="h${i}" value="0" onchange="calculate()" class="w-8 bg-transparent font-bold">
+                            <button onclick="changeScore(${i}, 1)" class="w-6 h-6 bg-blue-100 text-blue-600 rounded">+</button>
+                        </div>
+                    </div>
+                `;
+                if(i <= 9) outBox.innerHTML += holeHTML;
+                else inBox.innerHTML += holeHTML;
+            }
+        }
+
+        function changeScore(holeNum, delta) {
+            const input = document.getElementById(`h${holeNum}`);
+            let val = parseInt(input.value) + delta;
+            input.value = val < 0 ? 0 : val;
+            calculate();
+        }
+
+        function calculate() {
+            let outTotal = 0;
+            let inTotal = 0;
+
+            for(let i=1; i<=9; i++) outTotal += parseInt(document.getElementById(`h${i}`).value) || 0;
+            for(let i=10; i<=18; i++) inTotal += parseInt(document.getElementById(`h${i}`).value) || 0;
+
+            document.getElementById('out-sum').innerText = outTotal;
+            document.getElementById('in-sum').innerText = inTotal;
+            document.getElementById('grand-total').innerText = outTotal + inTotal;
+        }
+    </script>
+</body>
+</html>
